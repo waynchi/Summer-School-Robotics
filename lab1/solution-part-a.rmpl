@@ -1,0 +1,81 @@
+;; -*- mode: common-lisp; -*-
+
+;; Define the cogrob package. Do NOT modify.
+(rmpl:defpackage #:cogrob
+  (:use #:cl))
+
+;; Enter the cogrob package. Do NOT modify.
+(in-package #:cogrob)
+
+;; Define a new primitive action, shower. It takes no arguments and can last
+;; anywhere from 5 to 10 minutes.
+(define-control-program shower ()
+  (declare (primitive)
+           (duration (simple :lower-bound 5 :upper-bound 10))))
+
+;; Primitive action breakfast
+(define-control-program breakfast ()
+  (declare (primitive)
+           (duration (simple :lower-bound 15 :upper-bound 20))))
+
+;; Primitive action scheduling-algorithms
+(define-control-program scheduling-algorithms ()
+  (declare (primitive)
+           (duration (simple :lower-bound 10 :upper-bound 15))))
+
+;; Primitive action planning-algorithms
+(define-control-program planning-algorithms ()
+  (declare (primitive)
+           (duration (simple :lower-bound 10 :upper-bound 15))))
+
+;; Primitive action pack
+(define-control-program pack ()
+  (declare (primitive)
+           (duration (simple :lower-bound 5 :upper-bound 5))))
+
+;; Primitive action ride-bike
+(define-control-program ride-bike ()
+  (declare (primitive)
+           (duration (simple :lower-bound 15 :upper-bound 20))))
+
+;; Define the main function. This specifies the plan we want Kirk to schedule.
+;; Example
+;; (with-blocks (block-in-scope1 block-in-scope2)
+;;              (seq (:block block-in-scope1)
+;;                   (action1)
+;;                   (action2))
+;;              (seq (:block block-in-scope2)
+;;                   (action3)
+;;                   (action4))
+;;              )
+
+(define-control-program breakfast-algs ()
+  (with-blocks ()
+               (par ()
+                    (breakfast)
+                    (algs))
+               ))
+
+(define-control-program algs ()
+  (with-blocks ()
+               (seq ()
+                    (scheduling-algorithms)
+                    (planning-algorithms))
+               ))
+
+(define-control-program main ()
+  (with-blocks ()
+               (seq ()
+                    (shower)
+                    (breakfast-algs)
+                    (pack)
+                    (ride-bike))
+               ))
+
+;; DO NOT MODIFY. Will be used in next part.
+(defclass world (standard-model-object)
+  ())
+
+;; DO NOT MODIFY. Will be used in next part.
+(defun make-world ()
+  (make-instance 'world))
