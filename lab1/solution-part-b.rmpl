@@ -1,0 +1,190 @@
+;; -*- mode: common-lisp; -*-
+
+;; Define the cogrob package. Do NOT modify.
+(rmpl:defpackage #:cogrob
+  (:use #:cl))
+
+;; Enter the cogrob package. Do NOT modify.
+(in-package #:cogrob)
+
+;; Define a glider. You may need to add more slots to this class.
+;; NOTE May need to add moving and sampling states
+(defclass glider (standard-model-object)
+  (
+   (deployed-p
+    :initform nil
+    :accessor deployed-p)
+   (moving-p
+    :initform nil
+    :accessor moving-p)
+   (sampling-p
+    :initform nil
+    :accessor sampling-p)
+   (location
+    :initarg :location
+    :initform nil
+    :accessor location)))
+
+;; Define a location class. You likely will not need to add more slots
+;; to this class.
+(defclass location (standard-model-object)
+  ())
+
+;; Define a science-location class. You may need to add more slots to
+;; this class.
+(defclass science-location (location)
+  ((sampled
+    :initform nil
+    :accessor sampled)))
+
+;; Example of a primitive action with conditions and effects. Deploys
+;; a glider from a specified location.
+(define-control-program deploy (glider location)
+  (declare (primitive)
+           (requires (and (at :start (eql (deployed-p glider) nil))
+                          (over :all (eql (location glider) location))
+                          ))
+           (effect (at :end (eql (deployed-p glider) t)))
+           (duration (simple :lower-bound 5 :upper-bound 5))))
+
+;; Finish specifying this action to recover the glider. (You can add a
+;; location argument if you would like, but it is not necessary).
+(define-control-program recover (glider location)
+  (declare (primitive)
+           (requires (and (at :start (eql (deployed-p glider) t))
+                          (over :all (eql (location glider) location))))
+           (effect (at :end (eql (deployed-p glider) nil)))
+           (duration (simple :lower-bound 5 :upper-bound 5))))
+
+;; Finish specifying this action to move the glider to a location. Do
+;; NOT add a from argument.
+(define-control-program move (glider to)
+  (declare (primitive)
+           (requires (and (over :all (eql (deployed-p glider) t))
+                          (over :all (eql (sampling-p glider) nil))
+                          ))
+           (effect (and (at :end (eql (location glider) to))
+                        (at :start (eql (moving-p glider) t))
+                        (at :end (eql (moving-p glider) nil))
+                        ))
+           (duration (simple :lower-bound 10 :upper-bound 20))
+           ))
+
+;; Finish specifying this action to sample a science location with a
+;; glider.
+(define-control-program sample (glider location)
+  (declare (primitive)
+           (requires (and (over :all (eql (deployed-p glider) t))
+                          (over :all (eql (location glider) location))
+                          (over :all (eql (moving-p glider) nil))
+                          ))
+           (effect (and (at :end (eql (sampled location) t))
+                        (at :start (eql (sampling-p glider) t))
+                        (at :end (eql (sampling-p glider) nil))
+                        ))
+           (duration (simple :lower-bound 10 :upper-bound 15))
+           ))
+
+;; Define the entire world. You should not need to modify this class.
+(defclass world (standard-model-object)
+  ((glider-1
+    :initarg :glider-1
+    :final t
+    :reader glider-1)
+   (glider-2
+    :initarg :glider-2
+    :final t
+    :reader glider-2)
+   (start-location
+    :initarg :start-location
+    :final t
+    :reader start-location)
+   (science-1
+    :initarg :science-1
+    :final t
+    :reader science-1)
+   (science-2
+    :initarg :science-2
+    :final t
+    :reader science-2)
+   (science-3
+    :initarg :science-3
+    :final t
+    :reader science-3)
+   (science-4
+    :initarg :science-4
+    :final t
+    :reader science-4)
+   (end-location
+    :initarg :end-location
+    :final t
+    :reader end-location)))
+
+;; Define a macro for moving and ampling
+(define-control-program move-sample (glider location)
+  (seq (:slack t)
+       (move glider location)
+       (sample glider location)
+       ))
+
+;; Define the main function that specifies the plan outline for Kirk
+;; to complete.
+(define-control-program main ()
+  ;; First, unpack the world so that we can easily access all objects.
+  (let* ((glider-1 (glider-1 *world*))
+        (glider-2 (glider-2 *world*))
+        (start-location (start-location *world*))
+        (science-1 (science-1 *world*))
+        (science-2 (science-2 *world*))
+        (science-3 (science-3 *world*))
+        (science-4 (science-4 *world*))
+        (end-location (end-location *world*))
+        (same-glider (choose-either glider-1 glider-2))
+        (any-glider (choose-either glider-1 glider-2))
+        )
+    (par (:slack t)
+         (deploy glider-1 start-location)
+         (deploy glider-2 start-location))
+    (par (:slack t)
+         (move-sample same-glider science-1)
+         (move-sample same-glider science-2)
+         (move-sample glider-1 science-3)
+         (move-sample any-glider science-4)
+         )
+    (par (:slack t)
+         (move glider-1 end-location)
+         (move glider-2 end-location))
+    (par (:slack t :block block-name)
+         (recover glider-1 end-location)
+         (recover glider-2 end-location))
+    ))
+
+;; Questions
+;; Are we just supposed to put things in par and let the constraints handle it?
+;; How do we ensure that all the locations have been sampled before you decide to move to the end-location? Or do you just order that in a sequence
+;; Can we only add require constraints to primitives?
+;; How do we ensure that a glider doesn't go to science-2 if science-1 is already visited.
+
+;; A helper to make the initial state of the world for planning. If you
+;; modify the world class you may need to modify this function as well.
+(defun make-world ()
+  (let ((start-location (make-instance 'location
+                                       :ipc-id "start-location")))
+    (make-instance 'world
+                   :end-location (make-instance 'location
+                                                :ipc-id "end-location")
+                   :start-location start-location
+                   :glider-1 (make-instance 'glider
+                                            :location start-location
+                                            :ipc-id "glider-1")
+                   :glider-2 (make-instance 'glider
+                                            :location start-location
+                                            :ipc-id "glider-2")
+                   :science-1 (make-instance 'science-location
+                                             :ipc-id "science-1")
+                   :science-2 (make-instance 'science-location
+                                             :ipc-id "science-2")
+                   :science-3 (make-instance 'science-location
+                                             :ipc-id "science-3")
+                   :science-4 (make-instance 'science-location
+                                             :ipc-id "science-4"))))
